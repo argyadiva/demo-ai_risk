@@ -1,0 +1,1 @@
+"""Local classroom web application."""
