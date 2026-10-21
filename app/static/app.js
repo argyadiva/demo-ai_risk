@@ -1,7 +1,7 @@
 "use strict";
 
 const byId = (id) => document.getElementById(id);
-const state = { missions: [], missionId: "normal-use", hintIndex: -1, selectedRunId: null, activeRunId: null, source: null, records: new Map() };
+const state = { selectedRunId: null, activeRunId: null, source: null, records: new Map() };
 const escapeText = (value) => String(value ?? "");
 
 function clear(node) {
@@ -30,61 +30,6 @@ function notify(message) {
   toast.textContent = escapeText(message);
   toast.hidden = false;
   window.setTimeout(() => { toast.hidden = true; }, 3500);
-}
-
-function selectMission(missionId) {
-  state.missionId = missionId;
-  state.hintIndex = -1;
-  const mission = state.missions.find((item) => item.mission_id === missionId);
-  document.querySelectorAll(".mission-button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.mission === missionId);
-  });
-  if (mission) {
-    byId("message").value = mission.starter_prompt;
-    byId("mission-hint").textContent = `Goal: ${mission.goal}`;
-    byId("next-hint").disabled = mission.hints.length === 0;
-    byId("next-hint").textContent = mission.hints.length ? "Show hint 1" : "No hints";
-  } else {
-    byId("mission-hint").textContent = "Normal use: request your own profile or one support ticket.";
-    byId("next-hint").disabled = true;
-    byId("next-hint").textContent = "No hints";
-  }
-}
-
-function showNextHint() {
-  const mission = state.missions.find((item) => item.mission_id === state.missionId);
-  if (!mission || state.hintIndex + 1 >= mission.hints.length) return;
-  state.hintIndex += 1;
-  byId("mission-hint").textContent = `Goal: ${mission.goal}\nHint ${state.hintIndex + 1}: ${mission.hints[state.hintIndex]}`;
-  const nextIndex = state.hintIndex + 2;
-  byId("next-hint").disabled = nextIndex > mission.hints.length;
-  byId("next-hint").textContent = nextIndex > mission.hints.length ? "All hints revealed" : `Show hint ${nextIndex}`;
-}
-
-function drawMissions() {
-  const list = byId("mission-list");
-  clear(list);
-  const normal = element("button", "mission-button", "");
-  normal.type = "button";
-  normal.dataset.mission = "normal-use";
-  const num = element("span", "mission-index", "00");
-  const title = element("span", "", "");
-  title.append(element("strong", "", "Normal use"), element("small", "", "Learn the intended bot behavior"));
-  normal.append(num, title);
-  normal.addEventListener("click", () => selectMission("normal-use"));
-  list.append(normal);
-  state.missions.forEach((mission, index) => {
-    const button = element("button", "mission-button", "");
-    button.type = "button";
-    button.dataset.mission = mission.mission_id;
-    const number = element("span", "mission-index", String(index + 1).padStart(2, "0"));
-    const body = element("span", "", "");
-    body.append(element("strong", "", mission.title), element("small", "", mission.risk));
-    button.append(number, body);
-    button.addEventListener("click", () => selectMission(mission.mission_id));
-    list.append(button);
-  });
-  selectMission("normal-use");
 }
 
 function setRunState(value) {
@@ -175,7 +120,7 @@ async function renderHistory() {
     const button = element("button", `history-item${state.selectedRunId === item.run_id ? " active" : ""}`, "");
     button.type = "button";
     const info = element("span", "", "");
-    info.append(element("strong", "", `${item.mission_id} · ${item.status}`), element("small", "", item.message));
+    info.append(element("strong", "", `${item.customer_id || 'Saved account'} · ${item.status}`), element("small", "", item.message));
     button.append(info, element("code", "", item.run_id.slice(0, 8)));
     button.addEventListener("click", () => loadRun(item.run_id));
     root.append(button);
@@ -193,7 +138,7 @@ function updateCompareOptions(history) {
     select.append(new Option("Choose a saved run", ""));
     history.forEach((item) => {
       const date = item.submitted_at ? new Date(item.submitted_at).toLocaleTimeString() : "saved run";
-      select.append(new Option(`${item.mission_id} · ${item.status} · ${date} · ${item.run_id.slice(0, 8)}`, item.run_id));
+      select.append(new Option(`${item.customer_id || 'Saved account'} · ${item.status} · ${date} · ${item.run_id.slice(0, 8)}`, item.run_id));
     });
   });
   before.value = history.some((item) => item.run_id === oldBefore) ? oldBefore : (history[1]?.run_id || "");
@@ -222,7 +167,7 @@ async function compareAttempts() {
   const body = element("tbody", "", "");
   const rows = [
     ["Run and status", `${comparison.before.run_id}\n${comparison.before.status}`, `${comparison.after.run_id}\n${comparison.after.status}`],
-    ["Mission / session", `${comparison.before.mission_id} / ${comparison.before.customer_id}`, `${comparison.after.mission_id} / ${comparison.after.customer_id}`],
+    ["Session customer", comparison.before.customer_id, comparison.after.customer_id],
     ["Implementation fingerprint", comparison.before.implementation_fingerprint, comparison.after.implementation_fingerprint],
     ["Reproducing request", comparison.before.message, comparison.after.message],
     ["Model / prompt / dataset", `${comparison.before.model_name}\n${comparison.before.prompt_version}\n${comparison.before.dataset_version}`, `${comparison.after.model_name}\n${comparison.after.prompt_version}\n${comparison.after.dataset_version}`],
@@ -297,10 +242,7 @@ async function submitRun(messageOverride = null) {
   try {
     const accepted = await api("/v1/runs", {
       method: "POST",
-      body: JSON.stringify({
-        message,
-        mission_id: state.missionId,
-      }),
+      body: JSON.stringify({ message }),
     });
     state.selectedRunId = accepted.run_id;
     subscribe(accepted.run_id);
@@ -312,9 +254,7 @@ async function submitRun(messageOverride = null) {
 
 async function initialize() {
   try {
-    const [missions, readiness] = await Promise.all([api("/v1/missions"), api("/health/ready")]);
-    state.missions = missions;
-    drawMissions();
+    const readiness = await api("/health/ready");
     byId("health-label").textContent = readiness.model_configured ? `Ready · ${readiness.model}` : "Agent ready · API key not configured";
     if (readiness.model_configured) byId("health-dot").classList.add("ready");
     await renderHistory();
@@ -325,7 +265,6 @@ async function initialize() {
 }
 
 byId("run-button").addEventListener("click", () => submitRun());
-byId("next-hint").addEventListener("click", showNextHint);
 byId("compare-before").addEventListener("change", updateCompareButton);
 byId("compare-after").addEventListener("change", updateCompareButton);
 byId("compare-button").addEventListener("click", () => compareAttempts().catch((error) => notify(error.message)));
@@ -335,12 +274,10 @@ byId("cancel-button").addEventListener("click", async () => {
   catch (error) { notify(error.message); }
 });
 byId("demo-profile").addEventListener("click", () => {
-  selectMission("normal-use");
-  byId("message").value = "Please show me my customer profile.";
+  byId("message").value = "Show my customer profile.";
 });
 byId("demo-ticket").addEventListener("click", () => {
-  selectMission("normal-use");
-  byId("message").value = "Please create a normal priority support ticket. My test parcel arrived with damaged packaging.";
+  byId("message").value = "Please create one support ticket. My test parcel arrived with damaged packaging.";
 });
 byId("replay-button").addEventListener("click", async () => {
   if (!state.selectedRunId) return;
@@ -359,7 +296,7 @@ byId("export-button").addEventListener("click", async () => {
     const url = URL.createObjectURL(blob);
     const link = element("a", "", "");
     link.href = url;
-    link.download = `module15-evidence-${state.selectedRunId.slice(0, 8)}.json`;
+    link.download = `module16-evidence-${state.selectedRunId.slice(0, 8)}.json`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (error) { notify(error.message); }

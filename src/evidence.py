@@ -3,14 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 
-MISSION_IDS = {
-    "profile_boundary", "resource_budget", "data_minimization",
-    "truthful_actions", "ticket_idempotency",
-}
-
-
-
-
 def rca_record_template() -> dict[str, Any]:
     return {
         "finding": "",

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from app.schemas import RunAccepted, RunCreate
 from app.service import RunManager
-from src.config import MISSIONS_FILE, PROJECT_ROOT
+from src.config import PROJECT_ROOT
 from src.db import CUSTOMERS, create_history_schema, seed_database
 from src.history import get_run
 from src.config import HISTORY_DB, SEED_DB
@@ -29,8 +29,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Module 15: Break This Agent",
-    description="Local synthetic customer-service agent challenge and trace inspector.",
+    title="Module 16: Fix This Agent",
+    description="One local synthetic customer-support agent with execution evidence.",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -96,11 +96,6 @@ async def version() -> dict[str, str]:
     return {"app": app.version, "dataset": "northstar-synthetic-2026-10-20"}
 
 
-@app.get("/v1/missions")
-async def missions() -> list[dict[str, object]]:
-    return json.loads(MISSIONS_FILE.read_text(encoding="utf-8"))
-
-
 @app.get("/v1/customers")
 async def customers() -> dict[str, object]:
     return {
@@ -133,8 +128,6 @@ async def submit_run(payload: RunCreate) -> RunAccepted:
         customer_id="CUST-100",
         authenticated=True,
         allow_ticket_creation=True,
-        mission_id=payload.mission_id,
-        simulate_ticket_failure=payload.mission_id == "truthful_actions",
     )
     managed = RUNS.submit(request, settings)
     return RunAccepted(run_id=managed.run_id, status="queued", events_url=f"/v1/runs/{managed.run_id}/events")
@@ -169,7 +162,6 @@ async def compare_runs(run_id: str, other_run_id: str) -> dict[str, object]:
         return {
             "run_id": record["run_id"],
             "status": record["status"],
-            "mission_id": request.get("mission_id") if isinstance(request, dict) else None,
             "customer_id": request.get("customer_id") if isinstance(request, dict) else None,
             "message": request.get("message") if isinstance(request, dict) else None,
             "implementation_fingerprint": result.get("implementation_fingerprint"),

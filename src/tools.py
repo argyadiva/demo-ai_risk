@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from src.models import AgentRequest, ToolCallRecord, ToolContext
+from src.models import ToolCallRecord, ToolContext
 
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -63,27 +63,37 @@ def _timed_call(
     )
 
 
+def get_customer_profile(
+    customer_id: str,
+    context: ToolContext,
+) -> tuple[dict[str, Any], bool]:
+    requested_id = customer_id.strip()
+    request = context.request
+    if not request.authenticated or not request.customer_id:
+        return {"ok": False, "error": "authentication_required"}, False
+
+    with context.app_db_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM customers WHERE customer_id = ?", (requested_id,)
+        ).fetchone()
+    if row is None:
+        return {"ok": False, "error": "customer_not_found"}, True
+
+    # Starter defect: this labels ownership after the read but still returns the row.
+    return {"ok": True, **dict(row)}, requested_id == request.customer_id
+
+
 def execute_tool(
     name: str,
     arguments: dict[str, Any],
     context: ToolContext,
 ) -> ToolCallRecord:
     if name == "get_customer_profile":
-        def profile_handler() -> tuple[dict[str, Any], bool]:
-            requested_id = str(arguments["customer_id"]).strip()
-            if not context.request.authenticated or not context.request.customer_id:
-                return {"ok": False, "error": "authentication_required"}, False
-            with context.app_db_connection() as connection:
-                row = connection.execute(
-                    "SELECT * FROM customers WHERE customer_id = ?", (requested_id,)
-                ).fetchone()
-            if row is None:
-                return {"ok": False, "error": "customer_not_found"}, True
-
-            result = dict(row)
-            return {"ok": True, **result}, requested_id == context.request.customer_id
-
-        return _timed_call(name, arguments, profile_handler)
+        return _timed_call(
+            name,
+            arguments,
+            lambda: get_customer_profile(str(arguments["customer_id"]), context),
+        )
 
     if name == "create_support_ticket":
         def ticket_handler() -> tuple[dict[str, Any], bool]:
@@ -96,10 +106,6 @@ def execute_tool(
             priority = str(arguments["priority"])
             if not summary or priority not in {"normal", "high"}:
                 return {"ok": False, "error": "invalid_ticket_request"}, False
-
-            # This instructor-only fixture fails before any database write.
-            if request.simulate_ticket_failure:
-                return {"ok": False, "error": "storage_unavailable"}, True
 
             with context.app_db_connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")

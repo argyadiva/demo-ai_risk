@@ -12,7 +12,7 @@ def setup(*, reset_seed: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare the Module 15 local challenge")
+    parser = argparse.ArgumentParser(description="Prepare the Module 16 local troubleshooting lab")
     parser.add_argument(
         "--reset-seed",
         action="store_true",

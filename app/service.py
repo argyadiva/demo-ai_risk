@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import json
 import threading
 import uuid
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from src.agent import run_customer_service_agent
-from src.config import ATTEMPTS_DIR, HISTORY_DB
+from src.config import ATTEMPTS_DIR
 from src.db import database_snapshot, new_attempt_database
 from src.history import append_event, create_run, save_result, update_status
 from src.models import AgentRequest
@@ -40,7 +37,7 @@ class RunManager:
             self._runs[selected_id] = managed
         managed.thread = threading.Thread(
             target=self._execute, args=(managed, settings),
-            name=f"m15-run-{selected_id[:8]}", daemon=True,
+            name=f"m16-run-{selected_id[:8]}", daemon=True,
         )
         managed.thread.start()
         return managed
@@ -58,7 +55,7 @@ class RunManager:
 
         try:
             update_status(managed.run_id, "running")
-            emit("run.started", {"status": "running", "mission_id": managed.request.mission_id})
+            emit("run.started", {"status": "running"})
             app_db = new_attempt_database(managed.run_id)
             run = run_customer_service_agent(
                 managed.request,
@@ -128,7 +125,7 @@ class RunManager:
         old = self.get(run_id)
         if old is None:
             return None
-        request_data = old["request"]
+        request_data = dict(old["request"])
         request_data["request_id"] = ""
-        request = AgentRequest(**request_data)
+        request = AgentRequest.from_saved(request_data)
         return self.submit(request, settings)

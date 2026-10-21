@@ -1,8 +1,4 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-ra -m 'not live and not mission' --basetemp=.pytest-tmp"
-markers = [
-  "live: requires configured external model API calls",
-  "mission: intentionally fails while its matching student control is vulnerable",
-]
+addopts = "-ra --basetemp=.pytest-tmp"

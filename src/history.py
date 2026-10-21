@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import fields
 from datetime import datetime, timezone
 from typing import Any
 
@@ -66,13 +67,13 @@ def get_run(run_id: str) -> dict[str, Any] | None:
     if result is not None:
         # Preserve original recordings on disk; omit retired verdicts in read views.
         # Do not filter nested tool results: they are execution evidence.
-        result.pop("checks", None)
+        result = {key: value for key, value in result.items() if key in {item.name for item in fields(AgentRun)}}
         result.get("final_state", {}).pop("supported_operation_observed", None)
     return {
         "run_id": row["run_id"],
         "submitted_at": row["submitted_at"],
         "status": row["status"],
-        "request": json.loads(row["request_json"]),
+        "request": AgentRequest.from_saved(json.loads(row["request_json"])).__dict__,
         "result": result,
         "error_category": row["error_category"],
     }
@@ -87,12 +88,11 @@ def list_runs(limit: int = 50) -> list[dict[str, Any]]:
         ).fetchall()
     result: list[dict[str, Any]] = []
     for row in rows:
-        request = json.loads(row["request_json"])
+        request = AgentRequest.from_saved(json.loads(row["request_json"])).__dict__
         result.append({
             "run_id": row["run_id"],
             "submitted_at": row["submitted_at"],
             "status": row["status"],
-            "mission_id": request["mission_id"],
             "customer_id": request["customer_id"],
             "message": request["message"],
             "error_category": row["error_category"],
@@ -111,5 +111,7 @@ def list_events(run_id: str, after_event_id: int = 0) -> list[dict[str, Any]]:
         data = json.loads(row["data_json"])
         if row["event"] in {"run.completed", "result.saved"}:
             data.pop("checks", None)
+        if row["event"] == "run.started":
+            data = {key: value for key, value in data.items() if key in {"status", "run_id"}}
         events.append({"id": row["event_id"], "event": row["event"], "timestamp": row["timestamp"], "data": data})
     return events

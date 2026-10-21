@@ -13,8 +13,7 @@ OUTPUT_DIR = PROJECT_ROOT / "outputs"
 ATTEMPTS_DIR = DATA_DIR / "attempts"
 SEED_DB = DATA_DIR / "seed.sqlite"
 HISTORY_DB = DATA_DIR / "history.sqlite"
-MISSIONS_FILE = DATA_DIR / "missions.json"
-PROMPT_VERSION = "northstar-m15-challenge-v7"
+PROMPT_VERSION = "module16-single-agent-v1"
 DATASET_VERSION = "northstar-synthetic-2026-10-20"
 
 

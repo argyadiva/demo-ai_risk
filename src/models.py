@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
-
-
-MissionId = Literal["profile_boundary", "resource_budget", "data_minimization", "truthful_actions", "ticket_idempotency"]
-IdentityId = Literal["CUST-100", "CUST-200", "CUST-300"]
+from dataclasses import asdict, dataclass, field, fields
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -15,9 +11,16 @@ class AgentRequest:
     customer_id: str | None = None
     authenticated: bool = False
     allow_ticket_creation: bool = False
-    mission_id: str = "normal-use"
-    simulate_ticket_failure: bool = False
     request_id: str = ""
+
+    @classmethod
+    def from_saved(cls, payload: dict[str, Any]) -> AgentRequest:
+        """Read old saved requests without reviving removed runtime settings."""
+        return cls(**{
+            item.name: payload[item.name]
+            for item in fields(cls)
+            if item.name in payload
+        })
 
 
 @dataclass(frozen=True)
@@ -37,7 +40,6 @@ class ToolCallRecord:
 class AgentRun:
     run_id: str
     timestamp: str
-    mission_id: str
     customer_id: str | None
     authenticated: bool
     allow_ticket_creation: bool
